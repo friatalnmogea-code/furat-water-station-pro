@@ -1,353 +1,1286 @@
-* {
-  box-sizing: border-box;
+const STORAGE_KEY = 'furat-water-station-v2';
+
+function deepClone(obj) {
+  if (typeof structuredClone === 'function') return structuredClone(obj);
+  return JSON.parse(JSON.stringify(obj));
 }
 
-:root {
-  --bg: #eef4ff;
-  --panel: #ffffff;
-  --panel-soft: #f7faff;
-  --sidebar: #0f172a;
-  --sidebar-text: #e5eefc;
-  --primary: #1d4ed8;
-  --primary-2: #2563eb;
-  --accent: #0ea5e9;
-  --success: #16a34a;
-  --warning: #f59e0b;
-  --danger: #dc2626;
-  --text: #14213d;
-  --muted: #5b6b84;
-  --line: #dfe7f3;
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-  --radius: 18px;
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-body {
-  margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-}
+const defaultSections = [
+  { id: 'dashboard', name: 'الرئيسية', icon: '🏠', active: true },
+  { id: 'employees', name: 'الموظفين', icon: '👥', active: true },
+  { id: 'withdrawals', name: 'السحوبات', icon: '💰', active: true },
+  { id: 'attendance', name: 'الحضور', icon: '📅', active: true },
+  { id: 'reports', name: 'التقارير', icon: '📊', active: true },
+  { id: 'special', name: 'السحوبات الخاصة', icon: '🎁', active: true },
+  { id: 'settings', name: 'الإعدادات', icon: '⚙️', active: true },
+];
 
-button, input, select, textarea {
-  font: inherit;
-}
+const defaultUsers = [
+  { id: 1, username: 'admin', password: '1234', name: 'مدير النظام', role: 'admin' },
+];
 
-button {
-  cursor: pointer;
-}
+const defaultSettings = {
+  companyName: 'محطة مياه الفرات النموذجية',
+  shortName: 'محطة الفرات',
+  currency: 'د.ع',
+  theme: 'blue',
+  deductionType: 'percentage',
+  deductionValue: 10,
+  phone: '0770000000',
+  address: 'النجف / العراق',
+};
 
-.app-shell {
-  display: flex;
-  min-height: 100vh;
-}
+const defaultData = {
+  settings: defaultSettings,
+  sections: defaultSections,
+  users: defaultUsers,
+  currentUserId: 1,
+  currentPage: 'dashboard',
+  employees: [
+    { id: 1, name: 'منير جاسم', job: 'سائق', salary: 600, phone: '0771111111', whatsapp: '964771111111', telegram: '@munir', birthDate: '1990-05-12', hireDate: '2020-01-10', status: 'active' },
+    { id: 2, name: 'على راضي', job: 'مراقب', salary: 700, phone: '0772222222', whatsapp: '964772222222', telegram: '@ali', birthDate: '1994-02-14', hireDate: '2021-08-09', status: 'active' },
+    { id: 3, name: 'حسين كاظم', job: 'عامل', salary: 550, phone: '0773333333', whatsapp: '964773333333', telegram: '@hussain', birthDate: '1995-11-08', hireDate: '2022-03-01', status: 'active' },
+  ],
+  withdrawals: [
+    { id: 1, employeeId: 1, amount: 80, date: '2026-10-03', note: 'سحب شهر سبتمبر' },
+    { id: 2, employeeId: 2, amount: 60, date: '2026-10-02', note: 'سحب طارئ' },
+  ],
+  attendance: [
+    { id: 1, employeeId: 1, date: '2026-10-03', status: 'حضور', deduction: 0, note: '' },
+    { id: 2, employeeId: 2, date: '2026-10-03', status: 'غياب', deduction: 70, note: 'غياب بدون عذر' },
+    { id: 3, employeeId: 3, date: '2026-10-03', status: 'حضور', deduction: 0, note: '' },
+  ],
+  specialSubscribers: [
+    { id: 1, name: 'حجي عبدالرزاق', phone: '0779999999', status: 'active' },
+    { id: 2, name: 'مؤسسة النور', phone: '0778888888', status: 'active' },
+  ],
+  specialWithdrawals: [
+    { id: 1, subscriberId: 1, amount: 200, date: '2026-10-01', paidBy: 'حسين', paymentMethod: 'حوالة', note: 'مشترك خاص' },
+  ],
+  backupHistory: [],
+};
 
-.sidebar {
-  width: 280px;
-  background: linear-gradient(180deg, var(--sidebar) 0%, #0b1220 100%);
-  color: var(--sidebar-text);
-  padding: 20px 14px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-}
+let state = loadState();
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 10px 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  margin-bottom: 16px;
-}
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return deepClone(defaultData);
 
-.brand-badge {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,0.1);
-  font-size: 22px;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.nav-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  background: transparent;
-  border: 0;
-  color: var(--sidebar-text);
-  padding: 11px 12px;
-  border-radius: 12px;
-  text-align: right;
-  transition: 0.2s ease;
-}
-
-.nav-btn:hover,
-.nav-btn.active {
-  background: rgba(255,255,255,0.08);
-  transform: translateX(-2px);
-}
-
-.nav-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,0.08);
-}
-
-.main-content {
-  flex: 1;
-  padding: 24px;
-}
-
-.page {
-  display: none;
-}
-
-.page.active {
-  display: block;
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 18px;
-  margin-bottom: 18px;
-}
-
-.heading-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.heading-row h2,
-.heading-row h3,
-.heading-row h1 {
-  margin: 0;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 18px;
-}
-
-.stat-card {
-  background: linear-gradient(135deg, #f8fbff 0%, #edf5ff 100%);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 18px;
-}
-
-.stat-card .label {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.stat-card .value {
-  font-size: 1.8rem;
-  font-weight: 800;
-  margin-top: 8px;
-}
-
-.grid-2,
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.field label {
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-input, select, textarea, button.btn {
-  border-radius: 12px;
-}
-
-input, select, textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  background: #fff;
-  padding: 11px 12px;
-  color: var(--text);
-  outline: none;
-  transition: 0.2s ease;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.08);
-}
-
-textarea {
-  min-height: 90px;
-  resize: vertical;
-}
-
-.btn-row,
-.action-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.btn {
-  border: none;
-  background: #e9eefb;
-  color: var(--text);
-  padding: 10px 16px;
-  font-weight: 700;
-  border-radius: 12px;
-  transition: 0.2s ease;
-}
-
-.btn:hover {
-  transform: translateY(-1px);
-}
-
-.btn.primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  color: white;
-}
-
-.btn.success {
-  background: var(--success);
-  color: #fff;
-}
-
-.btn.warning {
-  background: var(--warning);
-  color: #fff;
-}
-
-.btn.danger {
-  background: var(--danger);
-  color: #fff;
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 720px;
-}
-
-thead th {
-  background: #f4f8ff;
-  color: var(--muted);
-  text-align: right;
-  font-size: 0.85rem;
-  padding: 12px 10px;
-}
-
-tbody td {
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.badge {
-  display: inline-block;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.badge.green {
-  background: rgba(22, 163, 74, 0.1);
-  color: var(--success);
-}
-
-.badge.red {
-  background: rgba(220, 38, 38, 0.1);
-  color: var(--danger);
-}
-
-.badge.orange {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--warning);
-}
-
-.badge.blue {
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--primary);
-}
-
-.empty-state {
-  text-align: center;
-  color: var(--muted);
-  padding: 30px 10px;
-}
-
-.info-box {
-  background: linear-gradient(135deg, #eef8ff 0%, #f7faff 100%);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-  color: var(--muted);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.flex-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.search-box {
-  min-width: 220px;
-}
-
-@media (max-width: 980px) {
-  .app-shell {
-    flex-direction: column;
-  }
-
-  .sidebar {
-    position: relative;
-    width: 100%;
-    height: auto;
-  }
-
-  .main-content {
-    padding: 18px;
+  try {
+    const parsed = JSON.parse(saved);
+    const base = deepClone(defaultData);
+    return {
+      ...base,
+      ...parsed,
+      settings: { ...base.settings, ...(parsed.settings || {}) },
+      sections: Array.isArray(parsed.sections) && parsed.sections.length ? parsed.sections : base.sections,
+      users: Array.isArray(parsed.users) && parsed.users.length ? parsed.users : base.users,
+      employees: Array.isArray(parsed.employees) ? parsed.employees : [],
+      withdrawals: Array.isArray(parsed.withdrawals) ? parsed.withdrawals : [],
+      attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
+      specialSubscribers: Array.isArray(parsed.specialSubscribers) ? parsed.specialSubscribers : [],
+      specialWithdrawals: Array.isArray(parsed.specialWithdrawals) ? parsed.specialWithdrawals : [],
+    };
+  } catch (error) {
+    return deepClone(defaultData);
   }
 }
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function currentUser() {
+  return state.users.find((u) => Number(u.id) === Number(state.currentUserId)) || null;
+}
+
+function showPage(pageId) {
+  state.currentPage = pageId;
+  saveState();
+  renderApp();
+}
+
+function login(username, password) {
+  const user = state.users.find((u) => u.username === username && u.password === password);
+  if (!user) return false;
+  state.currentUserId = user.id;
+  saveState();
+  renderApp();
+  return true;
+}
+
+function logout() {
+  state.currentUserId = null;
+  saveState();
+  renderApp();
+}
+
+function applyTheme() {
+  const root = document.documentElement;
+  const theme = state.settings.theme || 'blue';
+  const palettes = {
+    blue: { primary: '#1d4ed8', primary2: '#2563eb', accent: '#0ea5e9', bg: '#eef4ff' },
+    green: { primary: '#15803d', primary2: '#16a34a', accent: '#10b981', bg: '#ecfdf5' },
+    orange: { primary: '#ea580c', primary2: '#f59e0b', accent: '#f97316', bg: '#fff7ed' },
+    purple: { primary: '#7c3aed', primary2: '#8b5cf6', accent: '#a78bfa', bg: '#f5f3ff' },
+  };
+
+  const c = palettes[theme] || palettes.blue;
+  root.style.setProperty('--primary', c.primary);
+  root.style.setProperty('--primary-2', c.primary2);
+  root.style.setProperty('--accent', c.accent);
+  root.style.setProperty('--bg', c.bg);
+}
+
+function currencyFormat(value) {
+  const number = Number(value || 0);
+  return `${number.toLocaleString('en-US')} ${state.settings.currency}`;
+}
+
+function getEmployeeById(employeeId) {
+  return state.employees.find((emp) => Number(emp.id) === Number(employeeId)) || null;
+}
+
+function getSubscriberById(subscriberId) {
+  return state.specialSubscribers.find((s) => Number(s.id) === Number(subscriberId)) || null;
+}
+
+function calculateEmployeeBalance(employeeId) {
+  const employee = getEmployeeById(employeeId);
+  if (!employee) return 0;
+
+  const totalWithdrawals = state.withdrawals
+    .filter((w) => Number(w.employeeId) === Number(employeeId))
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  const totalDeductions = state.attendance
+    .filter((a) => Number(a.employeeId) === Number(employeeId) && a.status === 'غياب')
+    .reduce((sum, item) => sum + Number(item.deduction || 0), 0);
+
+  return Number(employee.salary) - totalWithdrawals - totalDeductions;
+}
+
+function renderLoginPage() {
+  return `
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="brand-badge">💧</div>
+          <h2>${escapeHtml(state.settings.companyName)}</h2>
+        </div>
+        <form id="loginForm" class="login-form">
+          <div class="field">
+            <label>اسم المستخدم</label>
+            <input type="text" id="loginUser" placeholder="admin" required />
+          </div>
+          <div class="field">
+            <label>كلمة المرور</label>
+            <input type="password" id="loginPass" placeholder="1234" required />
+          </div>
+          <button type="submit" class="btn primary full-width">تسجيل الدخول</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+
+  const activeSections = state.sections.filter((sec) => sec.active !== false);
+  const currentUserData = currentUser();
+
+  sidebar.innerHTML = `
+    <div class="brand">
+      <div class="brand-badge">💧</div>
+      <div>
+        <h1>${escapeHtml(state.settings.companyName)}</h1>
+        <small>${escapeHtml(currentUserData ? currentUserData.name : '')}</small>
+      </div>
+    </div>
+    <nav class="nav-list">
+      ${activeSections.map((section) => `
+        <button class="nav-btn ${state.currentPage === section.id ? 'active' : ''}" data-action="nav-page" data-page="${section.id}">
+          <div class="nav-icon">${section.icon || '•'}</div>
+          <span>${escapeHtml(section.name)}</span>
+        </button>
+      `).join('')}
+      <button class="nav-btn danger-btn" data-action="logout">
+        <div class="nav-icon">🚪</div>
+        <span>تسجيل الخروج</span>
+      </button>
+    </nav>
+  `;
+}
+
+function renderDashboardPage() {
+  const activeEmployees = state.employees.filter((e) => e.status !== 'inactive');
+  const totalSalary = activeEmployees.reduce((sum, e) => sum + Number(e.salary || 0), 0);
+  const totalWithdrawals = state.withdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+  const totalSpecial = state.specialWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+  const totalAbsent = state.attendance.filter((a) => a.status === 'غياب').length;
+  const totalDue = state.employees.reduce((sum, emp) => sum + calculateEmployeeBalance(emp.id), 0);
+
+  return `
+    <div class="page active">
+      <div class="heading-row">
+        <div>
+          <h1>لوحة التحكم</h1>
+          <div class="muted">${escapeHtml(state.settings.companyName)}</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">إجمالي الموظفين</div>
+          <div class="value">${activeEmployees.length}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">إجمالي الرواتب</div>
+          <div class="value">${currencyFormat(totalSalary)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">إجمالي السحوبات</div>
+          <div class="value">${currencyFormat(totalWithdrawals)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">الغياب</div>
+          <div class="value">${totalAbsent}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">السحوبات الخاصة</div>
+          <div class="value">${currencyFormat(totalSpecial)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">المتبقي الكلي</div>
+          <div class="value">${currencyFormat(totalDue)}</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>ملخص سريع</h3>
+        <div class="info-box">
+          ${escapeHtml(state.settings.companyName)} يعمل بكفاءة، ويُفضّل مراجعة سجل الحضور اليومي لضمان سلامة خصومات الموظفين.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderEmployeesPage() {
+  const employees = [...state.employees].sort((a, b) => Number(a.id) - Number(b.id));
+
+  return `
+    <div class="page active">
+      <div class="heading-row">
+        <h2>إدارة الموظفين</h2>
+      </div>
+
+      <div class="panel">
+        <h3>إضافة موظف جديد</h3>
+        <div class="form-grid">
+          <div class="field"><label>رقم الموظف</label><input id="empId" type="number" min="1" placeholder="101"></div>
+          <div class="field"><label>اسم الموظف</label><input id="empName" type="text" placeholder="اسم الموظف"></div>
+          <div class="field"><label>الوظيفة</label><input id="empJob" type="text" placeholder="الوظيفة"></div>
+          <div class="field"><label>الراتب (${escapeHtml(state.settings.currency)})</label><input id="empSalary" type="number" min="0" placeholder="600"></div>
+          <div class="field"><label>رقم الهاتف</label><input id="empPhone" type="text" placeholder="077xxxxxxx"></div>
+          <div class="field"><label>واتساب</label><input id="empWhatsapp" type="text" placeholder="9647xxxxxxx"></div>
+          <div class="field"><label>تليجرام</label><input id="empTelegram" type="text" placeholder="@username"></div>
+          <div class="field"><label>تاريخ الميلاد</label><input id="empBirth" type="date"></div>
+          <div class="field"><label>تاريخ المباشرة</label><input id="empHireDate" type="date"></div>
+        </div>
+        <div class="action-row">
+          <button class="btn primary" data-action="add-employee">حفظ الموظف</button>
+          <button class="btn" data-action="clear-employee-form">مسح النموذج</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="heading-row">
+          <h3>قائمة الموظفين</h3>
+          <input id="employeeSearch" type="text" class="search-box" placeholder="بحث بالاسم أو الرقم" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الرقم</th><th>الاسم</th><th>الوظيفة</th><th>الراتب</th><th>الحالة</th><th>المتبقي</th><th>الإجراءات</th></tr>
+            </thead>
+            <tbody>
+              ${employees.length ? employees.map((employee) => `
+                <tr>
+                  <td>${employee.id}</td>
+                  <td>${escapeHtml(employee.name)}</td>
+                  <td>${escapeHtml(employee.job || '—')}</td>
+                  <td>${currencyFormat(employee.salary)}</td>
+                  <td><span class="badge ${employee.status === 'active' ? 'green' : 'red'}">${employee.status === 'active' ? 'نشط' : 'غير نشط'}</span></td>
+                  <td>${currencyFormat(calculateEmployeeBalance(employee.id))}</td>
+                  <td>
+                    <div class="btn-row">
+                      <button class="btn" data-action="edit-employee" data-id="${employee.id}">تعديل</button>
+                      <button class="btn danger" data-action="delete-employee" data-id="${employee.id}">حذف</button>
+                    </div>
+                  </td>
+                </tr>
+              `).join('') : '<tr><td colspan="7" class="empty-state">لا توجد موظفين</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWithdrawalsPage() {
+  const withdrawalRows = [...state.withdrawals].sort((a, b) => b.date.localeCompare(a.date));
+
+  return `
+    <div class="page active">
+      <div class="heading-row"><h2>السحوبات</h2></div>
+      <div class="panel">
+        <h3>تسجيل سحب جديد</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>الموظف</label>
+            <select id="withdrawEmployee">
+              <option value="">اختر موظفًا</option>
+              ${state.employees.filter((e) => e.status === 'active').map((emp) => `<option value="${emp.id}">${escapeHtml(emp.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>المبلغ (${escapeHtml(state.settings.currency)})</label><input id="withdrawAmount" type="number" min="1" placeholder="80"></div>
+          <div class="field"><label>التاريخ</label><input id="withdrawDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <div class="field"><label>ملاحظة</label><input id="withdrawNote" type="text" placeholder="ملاحظة اختيارية"></div>
+        </div>
+        <div class="action-row">
+          <button class="btn primary" data-action="save-withdrawal">حفظ السحب</button>
+          <button class="btn" data-action="clear-withdrawal-form">مسح</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="heading-row">
+          <h3>سجل السحوبات</h3>
+          <input id="withdrawSearch" type="text" class="search-box" placeholder="بحث في السحوبات" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الموظف</th><th>المبلغ</th><th>التاريخ</th><th>الملاحظة</th><th>الإجراء</th></tr>
+            </thead>
+            <tbody>
+              ${withdrawalRows.length ? withdrawalRows.map((w) => {
+                const emp = getEmployeeById(w.employeeId);
+                return `
+                  <tr>
+                    <td>${emp ? escapeHtml(emp.name) : 'غير معروف'}</td>
+                    <td>${currencyFormat(w.amount)}</td>
+                    <td>${escapeHtml(w.date)}</td>
+                    <td>${escapeHtml(w.note || '—')}</td>
+                    <td><button class="btn danger" data-action="delete-withdrawal" data-id="${w.id}">حذف</button></td>
+                  </tr>
+                `;
+              }).join('') : '<tr><td colspan="5" class="empty-state">لا توجد سحوبات</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAttendancePage() {
+  const attendanceDate = new Date().toISOString().slice(0, 10);
+
+  return `
+    <div class="page active">
+      <div class="heading-row"><h2>الحضور والغياب</h2></div>
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field"><label>تاريخ الحضور</label><input id="attendanceDate" type="date" value="${attendanceDate}"></div>
+        </div>
+        <div class="action-row">
+          <button class="btn success" data-action="mark-all-present">تحديد الكل حاضر</button>
+          <button class="btn warning" data-action="mark-all-absent">تحديد الكل غائب</button>
+        </div>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead>
+              <tr><th>الموظف</th><th>الراتب</th><th>الحالة</th><th>الخصم</th><th>الملاحظة</th></tr>
+            </thead>
+            <tbody>
+              ${state.employees.filter((e) => e.status === 'active').map((emp) => {
+                const record = state.attendance.find((a) => Number(a.employeeId) === Number(emp.id) && a.date === attendanceDate) || null;
+                const status = record ? record.status : 'حضور';
+                const deduction = record ? Number(record.deduction || 0) : 0;
+                const note = record ? (record.note || '') : '';
+                return `
+                  <tr>
+                    <td>${escapeHtml(emp.name)}</td>
+                    <td>${currencyFormat(emp.salary)}</td>
+                    <td>
+                      <select data-employee-id="${emp.id}" data-role="attendance-status">
+                        <option value="حضور" ${status === 'حضور' ? 'selected' : ''}>حضور</option>
+                        <option value="غياب" ${status === 'غياب' ? 'selected' : ''}>غياب</option>
+                      </select>
+                    </td>
+                    <td><input type="number" min="0" data-role="attendance-deduction" data-employee-id="${emp.id}" value="${deduction}" style="max-width:120px;"></td>
+                    <td><input type="text" data-role="attendance-note" data-employee-id="${emp.id}" value="${escapeHtml(note)}" placeholder="ملاحظة"></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="action-row">
+          <button class="btn primary" data-action="save-attendance">حفظ الحضور</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderReportsPage() {
+  const employees = state.employees.filter((emp) => emp.status === 'active');
+
+  return `
+    <div class="page active">
+      <div class="heading-row"><h2>التقارير</h2></div>
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field">
+            <label>الموظف</label>
+            <select id="reportEmployeeSelect">
+              <option value="">اختر موظفًا</option>
+              ${employees.map((emp) => `<option value="${emp.id}">${escapeHtml(emp.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>الشهر</label><input id="reportMonth" type="month" value="${new Date().toISOString().slice(0, 7)}"></div>
+        </div>
+        <div class="action-row">
+          <button class="btn primary" data-action="generate-report">عرض التقرير</button>
+        </div>
+      </div>
+
+      <div id="reportOutput" class="panel"></div>
+    </div>
+  `;
+}
+
+function renderSpecialPage() {
+  const subscribers = [...state.specialSubscribers].sort((a, b) => a.name.localeCompare(b.name));
+  const withdrawals = [...state.specialWithdrawals].sort((a, b) => b.date.localeCompare(a.date));
+
+  return `
+    <div class="page active">
+      <div class="heading-row"><h2>السحوبات الخاصة</h2></div>
+
+      <div class="panel">
+        <h3>إضافة مشترك جديد</h3>
+        <div class="form-grid">
+          <div class="field"><label>اسم المشترك</label><input id="subscriberName" type="text" placeholder="اسم المشترك أو المؤسسة"></div>
+          <div class="field"><label>رقم الهاتف</label><input id="subscriberPhone" type="text" placeholder="077xxxxxxx"></div>
+        </div>
+        <div class="action-row"><button class="btn primary" data-action="add-subscriber">حفظ المشترك</button></div>
+      </div>
+
+      <div class="panel">
+        <h3>تسجيل سحب خاص</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>المشترك</label>
+            <select id="specialSubscriber">
+              <option value="">اختر المشترك</option>
+              ${subscribers.map((sub) => `<option value="${sub.id}">${escapeHtml(sub.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>المبلغ (${escapeHtml(state.settings.currency)})</label><input id="specialAmount" type="number" min="1" placeholder="200"></div>
+          <div class="field"><label>تاريخ السحب</label><input id="specialDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <div class="field"><label>من أسدد</label><input id="specialPaidBy" type="text" placeholder="اسم الشخص"></div>
+          <div class="field">
+            <label>طريقة الدفع</label>
+            <select id="specialMethod">
+              <option value="حوالة">حوالة</option>
+              <option value="نقدي">نقدي</option>
+              <option value="شيك">شيك</option>
+              <option value="تسليم">تسليم</option>
+            </select>
+          </div>
+          <div class="field"><label>ملاحظة</label><input id="specialNote" type="text" placeholder="ملاحظة"></div>
+        </div>
+        <div class="action-row"><button class="btn primary" data-action="save-special-withdrawal">حفظ السحب الخاص</button></div>
+      </div>
+
+      <div class="panel">
+        <h3>سجل السحوبات الخاصة</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>المشترك</th><th>المبلغ</th><th>التاريخ</th><th>طريقة الدفع</th><th>الإجراء</th></tr>
+            </thead>
+            <tbody>
+              ${withdrawals.length ? withdrawals.map((w) => {
+                const subscriber = getSubscriberById(w.subscriberId);
+                return `
+                  <tr>
+                    <td>${subscriber ? escapeHtml(subscriber.name) : 'غير معروف'}</td>
+                    <td>${currencyFormat(w.amount)}</td>
+                    <td>${escapeHtml(w.date)}</td>
+                    <td>${escapeHtml(w.paymentMethod)}</td>
+                    <td><button class="btn danger" data-action="delete-special-withdrawal" data-id="${w.id}">حذف</button></td>
+                  </tr>
+                `;
+              }).join('') : '<tr><td colspan="5" class="empty-state">لا توجد بيانات</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSettingsPage() {
+  return `
+    <div class="page active">
+      <div class="heading-row"><h2>الإعدادات</h2></div>
+
+      <div class="panel">
+        <h3>إعدادات الشركة</h3>
+        <div class="form-grid">
+          <div class="field"><label>اسم الشركة</label><input id="companyName" type="text" value="${escapeHtml(state.settings.companyName)}"></div>
+          <div class="field"><label>الاسم المختصر</label><input id="shortName" type="text" value="${escapeHtml(state.settings.shortName)}"></div>
+          <div class="field"><label>العملة</label><input id="currency" type="text" value="${escapeHtml(state.settings.currency)}"></div>
+          <div class="field">
+            <label>السمة</label>
+            <select id="theme">
+              <option value="blue" ${state.settings.theme === 'blue' ? 'selected' : ''}>أزرق</option>
+              <option value="green" ${state.settings.theme === 'green' ? 'selected' : ''}>أخضر</option>
+              <option value="orange" ${state.settings.theme === 'orange' ? 'selected' : ''}>برتقالي</option>
+              <option value="purple" ${state.settings.theme === 'purple' ? 'selected' : ''}>بنفسجي</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>نوع الخصم</label>
+            <select id="deductionType">
+              <option value="percentage" ${state.settings.deductionType === 'percentage' ? 'selected' : ''}>نسبة مئوية</option>
+              <option value="fixed" ${state.settings.deductionType === 'fixed' ? 'selected' : ''}>قيمة ثابتة</option>
+            </select>
+          </div>
+          <div class="field"><label>قيمة الخصم</label><input id="deductionValue" type="number" value="${Number(state.settings.deductionValue || 0)}"></div>
+          <div class="field"><label>الهاتف</label><input id="companyPhone" type="text" value="${escapeHtml(state.settings.phone)}"></div>
+          <div class="field"><label>العنوان</label><input id="companyAddress" type="text" value="${escapeHtml(state.settings.address)}"></div>
+        </div>
+        <div class="action-row"><button class="btn primary" data-action="save-settings">حفظ الإعدادات</button></div>
+      </div>
+
+      <div class="panel">
+        <h3>إدارة الأقسام</h3>
+        <div class="form-grid">
+          <div class="field"><label>اسم القسم</label><input id="newSectionName" type="text" placeholder="مثال: المخزون"></div>
+          <div class="field"><label>الأيقونة</label><input id="newSectionIcon" type="text" placeholder="🏪"></div>
+        </div>
+        <div class="action-row"><button class="btn primary" data-action="add-section">إضافة قسم</button></div>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead><tr><th>القسم</th><th>الأيقونة</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+            <tbody>
+              ${state.sections.map((section) => `
+                <tr>
+                  <td>${escapeHtml(section.name)}</td>
+                  <td>${escapeHtml(section.icon || '•')}</td>
+                  <td><span class="badge ${section.active === false ? 'red' : 'green'}">${section.active === false ? 'مخفي' : 'مرئي'}</span></td>
+                  <td><button class="btn ${section.active === false ? 'success' : 'warning'}" data-action="toggle-section" data-id="${section.id}">${section.active === false ? 'إظهار' : 'إخفاء'}</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>النسخ الاحتياطي والاستعادة</h3>
+        <div class="action-row">
+          <button class="btn primary" data-action="backup-data">إنشاء نسخة احتياطية</button>
+          <label class="btn" for="restoreFileInput">استعادة نسخة</label>
+          <input id="restoreFileInput" type="file" accept="application/json" style="display:none;">
+          <button class="btn danger" data-action="reset-data">إعادة تعيين البيانات</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCurrentPage() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const pageMap = {
+    dashboard: renderDashboardPage(),
+    employees: renderEmployeesPage(),
+    withdrawals: renderWithdrawalsPage(),
+    attendance: renderAttendancePage(),
+    reports: renderReportsPage(),
+    special: renderSpecialPage(),
+    settings: renderSettingsPage(),
+  };
+
+  app.innerHTML = pageMap[state.currentPage] || renderDashboardPage();
+}
+
+function renderApp() {
+  const app = document.getElementById('app');
+  const sidebar = document.getElementById('sidebar');
+
+  if (!app || !sidebar) return;
+
+  applyTheme();
+
+  if (!currentUser()) {
+    sidebar.innerHTML = '';
+    app.innerHTML = renderLoginPage();
+    bindLoginEvents();
+    return;
+  }
+
+  renderSidebar();
+  renderCurrentPage();
+  bindActions();
+}
+
+function bindLoginEvents() {
+  const form = document.getElementById('loginForm');
+  if (!form) return;
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value.trim();
+
+    if (!login(username, password)) {
+      alert('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+  });
+}
+
+function bindActions() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  app.querySelectorAll('[data-action]').forEach((button) => {
+    button.onclick = null;
+    button.addEventListener('click', (event) => {
+      const action = event.currentTarget.getAttribute('data-action');
+      const id = event.currentTarget.getAttribute('data-id');
+
+      switch (action) {
+        case 'nav-page':
+          showPage(event.currentTarget.dataset.page);
+          break;
+        case 'logout':
+          logout();
+          break;
+        case 'add-employee':
+          addEmployee();
+          break;
+        case 'clear-employee-form':
+          clearEmployeeForm();
+          break;
+        case 'edit-employee':
+          editEmployee(Number(id));
+          break;
+        case 'delete-employee':
+          deleteEmployee(Number(id));
+          break;
+        case 'save-withdrawal':
+          saveWithdrawal();
+          break;
+        case 'clear-withdrawal-form':
+          clearWithdrawalForm();
+          break;
+        case 'delete-withdrawal':
+          deleteWithdrawal(Number(id));
+          break;
+        case 'mark-all-present':
+          markAllAttendance('حضور');
+          break;
+        case 'mark-all-absent':
+          markAllAttendance('غياب');
+          break;
+        case 'save-attendance':
+          saveAttendance();
+          break;
+        case 'generate-report':
+          generateReport();
+          break;
+        case 'add-subscriber':
+          addSubscriber();
+          break;
+        case 'save-special-withdrawal':
+          saveSpecialWithdrawal();
+          break;
+        case 'delete-special-withdrawal':
+          deleteSpecialWithdrawal(Number(id));
+          break;
+        case 'save-settings':
+          saveSettings();
+          break;
+        case 'add-section':
+          addSection();
+          break;
+        case 'toggle-section':
+          toggleSection(id);
+          break;
+        case 'backup-data':
+          backupData();
+          break;
+        case 'reset-data':
+          resetData();
+          break;
+        default:
+          break;
+      }
+    });
+  });
+
+  const restoreInput = document.getElementById('restoreFileInput');
+  if (restoreInput) {
+    restoreInput.onchange = function (event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      restoreData(file);
+    };
+  }
+
+  const employeeSearch = document.getElementById('employeeSearch');
+  if (employeeSearch) {
+    employeeSearch.oninput = function () {
+      const search = employeeSearch.value.toLowerCase();
+      const rows = state.employees.filter((emp) => emp.name.toLowerCase().includes(search) || String(emp.id).includes(search));
+      const tbody = document.querySelector('#app tbody');
+      if (!tbody) return;
+      tbody.innerHTML = rows.length ? rows.map((employee) => `
+        <tr>
+          <td>${employee.id}</td>
+          <td>${escapeHtml(employee.name)}</td>
+          <td>${escapeHtml(employee.job || '—')}</td>
+          <td>${currencyFormat(employee.salary)}</td>
+          <td><span class="badge ${employee.status === 'active' ? 'green' : 'red'}">${employee.status === 'active' ? 'نشط' : 'غير نشط'}</span></td>
+          <td>${currencyFormat(calculateEmployeeBalance(employee.id))}</td>
+          <td><div class="btn-row"><button class="btn" data-action="edit-employee" data-id="${employee.id}">تعديل</button><button class="btn danger" data-action="delete-employee" data-id="${employee.id}">حذف</button></div></td>
+        </tr>
+      `).join('') : '<tr><td colspan="7" class="empty-state">لا توجد نتائج</td></tr>';
+    };
+  }
+
+  const withdrawSearch = document.getElementById('withdrawSearch');
+  if (withdrawSearch) {
+    withdrawSearch.oninput = function () {
+      const search = withdrawSearch.value.toLowerCase();
+      const rows = state.withdrawals.filter((w) => {
+        const emp = getEmployeeById(w.employeeId);
+        return (emp && emp.name.toLowerCase().includes(search)) || String(w.amount).includes(search) || (w.note || '').toLowerCase().includes(search);
+      });
+
+      const tbody = document.querySelectorAll('#app tbody')[1];
+      if (!tbody) return;
+      tbody.innerHTML = rows.length ? rows.map((w) => {
+        const emp = getEmployeeById(w.employeeId);
+        return `
+          <tr>
+            <td>${emp ? escapeHtml(emp.name) : 'غير معروف'}</td>
+            <td>${currencyFormat(w.amount)}</td>
+            <td>${escapeHtml(w.date)}</td>
+            <td>${escapeHtml(w.note || '—')}</td>
+            <td><button class="btn danger" data-action="delete-withdrawal" data-id="${w.id}">حذف</button></td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="5" class="empty-state">لا توجد نتائج</td></tr>';
+    };
+  }
+
+  app.querySelectorAll('[data-role="attendance-status"]').forEach((select) => {
+    select.onchange = function () {
+      const employeeId = Number(select.dataset.employeeId);
+      const date = document.getElementById('attendanceDate')?.value || new Date().toISOString().slice(0, 10);
+      const existing = state.attendance.find((a) => Number(a.employeeId) === employeeId && a.date === date);
+      const deduction = select.value === 'غياب' ? Math.round((Number(getEmployeeById(employeeId)?.salary || 0) * Number(state.settings.deductionValue || 0)) / 100) : 0;
+
+      if (existing) {
+        existing.status = select.value;
+        existing.deduction = deduction;
+      } else {
+        state.attendance.push({
+          id: Date.now() + Math.random(),
+          employeeId,
+          date,
+          status: select.value,
+          deduction,
+          note: '',
+        });
+      }
+
+      saveState();
+    };
+  });
+
+  app.querySelectorAll('[data-role="attendance-deduction"]').forEach((input) => {
+    input.oninput = function () {
+      const employeeId = Number(input.dataset.employeeId);
+      const date = document.getElementById('attendanceDate')?.value || new Date().toISOString().slice(0, 10);
+      const record = state.attendance.find((a) => Number(a.employeeId) === employeeId && a.date === date);
+      if (record) record.deduction = Number(input.value || 0);
+      saveState();
+    };
+  });
+
+  app.querySelectorAll('[data-role="attendance-note"]').forEach((input) => {
+    input.oninput = function () {
+      const employeeId = Number(input.dataset.employeeId);
+      const date = document.getElementById('attendanceDate')?.value || new Date().toISOString().slice(0, 10);
+      const record = state.attendance.find((a) => Number(a.employeeId) === employeeId && a.date === date);
+      if (record) record.note = input.value;
+      saveState();
+    };
+  });
+}
+
+function addEmployee() {
+  const id = Number(document.getElementById('empId')?.value || 0);
+  const name = document.getElementById('empName')?.value?.trim();
+  const job = document.getElementById('empJob')?.value?.trim();
+  const salary = Number(document.getElementById('empSalary')?.value || 0);
+
+  if (!id || !name || !salary) {
+    alert('يرجى إدخال رقم الموظف والاسم والراتب');
+    return;
+  }
+
+  if (state.employees.some((emp) => Number(emp.id) === id)) {
+    alert('رقم الموظف موجود بالفعل');
+    return;
+  }
+
+  state.employees.push({
+    id,
+    name,
+    job,
+    salary,
+    phone: document.getElementById('empPhone')?.value || '',
+    whatsapp: document.getElementById('empWhatsapp')?.value || '',
+    telegram: document.getElementById('empTelegram')?.value || '',
+    birthDate: document.getElementById('empBirth')?.value || '',
+    hireDate: document.getElementById('empHireDate')?.value || '',
+    status: 'active',
+  });
+
+  saveState();
+  renderApp();
+  alert('تم إضافة الموظف بنجاح');
+}
+
+function clearEmployeeForm() {
+  ['empId', 'empName', 'empJob', 'empSalary', 'empPhone', 'empWhatsapp', 'empTelegram', 'empBirth', 'empHireDate']
+    .forEach((fieldId) => {
+      const el = document.getElementById(fieldId);
+      if (el) el.value = '';
+    });
+}
+
+function deleteEmployee(employeeId) {
+  if (!confirm('هل أنت متأكد من حذف الموظف؟')) return;
+  state.employees = state.employees.filter((emp) => Number(emp.id) !== Number(employeeId));
+  state.withdrawals = state.withdrawals.filter((w) => Number(w.employeeId) !== Number(employeeId));
+  state.attendance = state.attendance.filter((a) => Number(a.employeeId) !== Number(employeeId));
+  saveState();
+  renderApp();
+}
+
+function editEmployee(employeeId) {
+  const emp = getEmployeeById(employeeId);
+  if (!emp) return;
+
+  const newName = prompt('اسم الموظف الجديد', emp.name);
+  if (newName === null) return;
+
+  const newJob = prompt('الوظيفة الجديدة', emp.job || '');
+  if (newJob === null) return;
+
+  const newSalary = Number(prompt('الراتب الجديد', emp.salary) || emp.salary);
+  if (Number.isNaN(newSalary)) return;
+
+  emp.name = newName.trim();
+  emp.job = newJob.trim();
+  emp.salary = newSalary;
+  saveState();
+  renderApp();
+  alert('تم تعديل بيانات الموظف');
+}
+
+function saveWithdrawal() {
+  const employeeId = Number(document.getElementById('withdrawEmployee')?.value || 0);
+  const amount = Number(document.getElementById('withdrawAmount')?.value || 0);
+  const date = document.getElementById('withdrawDate')?.value || new Date().toISOString().slice(0, 10);
+  const note = document.getElementById('withdrawNote')?.value || '';
+
+  if (!employeeId || !amount) {
+    alert('يرجى اختيار موظف وكتابة مبلغ صحيح');
+    return;
+  }
+
+  state.withdrawals.push({ id: Date.now(), employeeId, amount, date, note });
+  saveState();
+  renderApp();
+  alert('تم حفظ السحب بنجاح');
+}
+
+function clearWithdrawalForm() {
+  const employee = document.getElementById('withdrawEmployee');
+  const amount = document.getElementById('withdrawAmount');
+  const note = document.getElementById('withdrawNote');
+  if (employee) employee.value = '';
+  if (amount) amount.value = '';
+  if (note) note.value = '';
+}
+
+function deleteWithdrawal(withdrawalId) {
+  if (!confirm('هل تريد حذف هذا السحب؟')) return;
+  state.withdrawals = state.withdrawals.filter((w) => Number(w.id) !== Number(withdrawalId));
+  saveState();
+  renderApp();
+}
+
+function markAllAttendance(status) {
+  const date = document.getElementById('attendanceDate')?.value || new Date().toISOString().slice(0, 10);
+
+  state.employees.filter((e) => e.status === 'active').forEach((emp) => {
+    const existing = state.attendance.find((a) => Number(a.employeeId) === Number(emp.id) && a.date === date);
+    const deduction = status === 'غياب' ? Math.round((Number(emp.salary) * Number(state.settings.deductionValue || 0)) / 100) : 0;
+
+    if (existing) {
+      existing.status = status;
+      existing.deduction = deduction;
+      existing.note = status === 'غياب' ? 'تم التحديد كغياب' : '';
+    } else {
+      state.attendance.push({
+        id: Date.now() + Math.random(),
+        employeeId: emp.id,
+        date,
+        status,
+        deduction,
+        note: status === 'غياب' ? 'تم التحديد كغياب' : '',
+      });
+    }
+  });
+
+  saveState();
+  renderApp();
+}
+
+function saveAttendance() {
+  const date = document.getElementById('attendanceDate')?.value || new Date().toISOString().slice(0, 10);
+  const app = document.getElementById('app');
+
+  if (!app) return;
+
+  app.querySelectorAll('[data-role="attendance-status"]').forEach((select) => {
+    const employeeId = Number(select.dataset.employeeId);
+    const noteInput = app.querySelector(`[data-role="attendance-note"][data-employee-id="${employeeId}"]`);
+    const deductionInput = app.querySelector(`[data-role="attendance-deduction"][data-employee-id="${employeeId}"]`);
+    const status = select.value;
+    const deductionValue = Number(deductionInput?.value || 0);
+    const note = noteInput?.value || '';
+
+    const existing = state.attendance.find((a) => Number(a.employeeId) === employeeId && a.date === date);
+    if (existing) {
+      existing.status = status;
+      existing.deduction = deductionValue;
+      existing.note = note;
+    } else {
+      state.attendance.push({
+        id: Date.now() + Math.random(),
+        employeeId,
+        date,
+        status,
+        deduction: deductionValue,
+        note,
+      });
+    }
+  });
+
+  saveState();
+  renderApp();
+  alert('تم حفظ الحضور بنجاح');
+}
+
+function generateReport() {
+  const employeeId = Number(document.getElementById('reportEmployeeSelect')?.value || 0);
+  const month = document.getElementById('reportMonth')?.value || new Date().toISOString().slice(0, 7);
+  const output = document.getElementById('reportOutput');
+
+  if (!output) return;
+
+  if (!employeeId) {
+    output.innerHTML = '<div class="empty-state">اختر موظفًا لعرض التقرير</div>';
+    return;
+  }
+
+  const employee = getEmployeeById(employeeId);
+  if (!employee) {
+    output.innerHTML = '<div class="empty-state">الموظف غير موجود</div>';
+    return;
+  }
+
+  const filteredAttendance = state.attendance.filter((a) => Number(a.employeeId) === Number(employeeId) && a.date.startsWith(month));
+  const totalWithdrawals = state.withdrawals.filter((w) => Number(w.employeeId) === Number(employeeId) && w.date.startsWith(month)).reduce((sum, item) => sum + Number(item.amount), 0);
+  const totalDeductions = filteredAttendance.filter((a) => a.status === 'غياب').reduce((sum, item) => sum + Number(item.deduction || 0), 0);
+  const finalBalance = employee.salary - totalWithdrawals - totalDeductions;
+
+  output.innerHTML = `
+    <h3>تقرير الموظف: ${escapeHtml(employee.name)}</h3>
+    <div class="grid-2">
+      <div class="stat-card"><div class="label">الراتب الأساسي</div><div class="value">${currencyFormat(employee.salary)}</div></div>
+      <div class="stat-card"><div class="label">السحوبات</div><div class="value">${currencyFormat(totalWithdrawals)}</div></div>
+      <div class="stat-card"><div class="label">الخصومات</div><div class="value">${currencyFormat(totalDeductions)}</div></div>
+      <div class="stat-card"><div class="label">المتبقي</div><div class="value">${currencyFormat(finalBalance)}</div></div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px;">
+      <table>
+        <thead><tr><th>التاريخ</th><th>الحالة</th><th>الخصم</th><th>ملاحظة</th></tr></thead>
+        <tbody>
+          ${filteredAttendance.length ? filteredAttendance.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.date)}</td>
+              <td>${escapeHtml(row.status)}</td>
+              <td>${currencyFormat(row.deduction || 0)}</td>
+              <td>${escapeHtml(row.note || '—')}</td>
+            </tr>
+          `).join('') : '<tr><td colspan="4" class="empty-state">لا توجد بيانات لهذا الشهر</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function addSubscriber() {
+  const name = document.getElementById('subscriberName')?.value?.trim();
+  const phone = document.getElementById('subscriberPhone')?.value?.trim();
+
+  if (!name) {
+    alert('يرجى إدخال اسم المشترك');
+    return;
+  }
+
+  state.specialSubscribers.push({ id: Date.now(), name, phone, status: 'active' });
+  saveState();
+  renderApp();
+  alert('تم إضافة المشترك بنجاح');
+}
+
+function saveSpecialWithdrawal() {
+  const subscriberId = Number(document.getElementById('specialSubscriber')?.value || 0);
+  const amount = Number(document.getElementById('specialAmount')?.value || 0);
+  const date = document.getElementById('specialDate')?.value || new Date().toISOString().slice(0, 10);
+  const paidBy = document.getElementById('specialPaidBy')?.value || '';
+  const paymentMethod = document.getElementById('specialMethod')?.value || 'حوالة';
+  const note = document.getElementById('specialNote')?.value || '';
+
+  if (!subscriberId || !amount) {
+    alert('يرجى اختيار المشترك وكتابة مبلغ صحيح');
+    return;
+  }
+
+  state.specialWithdrawals.push({ id: Date.now(), subscriberId, amount, date, paidBy, paymentMethod, note });
+  saveState();
+  renderApp();
+  alert('تم تسجيل السحب الخاص بنجاح');
+}
+
+function deleteSpecialWithdrawal(id) {
+  if (!confirm('هل تريد حذف هذا السحب الخاص؟')) return;
+  state.specialWithdrawals = state.specialWithdrawals.filter((item) => Number(item.id) !== Number(id));
+  saveState();
+  renderApp();
+}
+
+function saveSettings() {
+  state.settings.companyName = document.getElementById('companyName')?.value || state.settings.companyName;
+  state.settings.shortName = document.getElementById('shortName')?.value || state.settings.shortName;
+  state.settings.currency = document.getElementById('currency')?.value || state.settings.currency;
+  state.settings.theme = document.getElementById('theme')?.value || state.settings.theme;
+  state.settings.deductionType = document.getElementById('deductionType')?.value || state.settings.deductionType;
+  state.settings.deductionValue = Number(document.getElementById('deductionValue')?.value || state.settings.deductionValue);
+  state.settings.phone = document.getElementById('companyPhone')?.value || state.settings.phone;
+  state.settings.address = document.getElementById('companyAddress')?.value || state.settings.address;
+
+  saveState();
+  applyTheme();
+  renderApp();
+  alert('تم حفظ إعدادات الشركة');
+}
+
+function addSection() {
+  const name = document.getElementById('newSectionName')?.value?.trim();
+  const icon = document.getElementById('newSectionIcon')?.value?.trim() || '📌';
+
+  if (!name) {
+    alert('يرجى إدخال اسم القسم');
+    return;
+  }
+
+  const exists = state.sections.some((section) => section.name.toLowerCase() === name.toLowerCase());
+  if (exists) {
+    alert('هذا القسم موجود بالفعل');
+    return;
+  }
+
+  state.sections.push({ id: `custom_${Date.now()}`, name, icon, active: true });
+  saveState();
+  renderApp();
+  alert('تم إضافة القسم بنجاح');
+}
+
+function toggleSection(sectionId) {
+  const section = state.sections.find((item) => item.id === sectionId);
+  if (!section) return;
+  section.active = !section.active;
+  saveState();
+  renderApp();
+}
+
+function backupData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `backup-${Date.now()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  alert('تم إنشاء نسخة احتياطية بنجاح');
+}
+
+function restoreData(file) {
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (event) {
+    try {
+      const restored = JSON.parse(event.target.result);
+      state = { ...deepClone(defaultData), ...restored, settings: { ...defaultSettings, ...(restored.settings || {}) } };
+      saveState();
+      renderApp();
+      alert('تمت استعادة النسخة الاحتياطية بنجاح');
+    } catch (error) {
+      alert('الملف غير صالح');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function resetData() {
+  if (!confirm('هل أنت متأكد من إعادة تعيين جميع البيانات؟')) return;
+  state = deepClone(defaultData);
+  saveState();
+  renderApp();
+  alert('تمت إعادة تعيين البيانات');
+}
+
+function handleDocumentClick(event) {
+  const actionButton = event.target.closest('[data-action]');
+  if (!actionButton) return;
+
+  const action = actionButton.dataset.action;
+  const id = actionButton.dataset.id;
+  const page = actionButton.dataset.page;
+
+  switch (action) {
+    case 'nav-page':
+      showPage(page);
+      break;
+    case 'logout':
+      logout();
+      break;
+    case 'add-employee':
+      addEmployee();
+      break;
+    case 'clear-employee-form':
+      clearEmployeeForm();
+      break;
+    case 'edit-employee':
+      editEmployee(Number(id));
+      break;
+    case 'delete-employee':
+      deleteEmployee(Number(id));
+      break;
+    case 'save-withdrawal':
+      saveWithdrawal();
+      break;
+    case 'clear-withdrawal-form':
+      clearWithdrawalForm();
+      break;
+    case 'delete-withdrawal':
+      deleteWithdrawal(Number(id));
+      break;
+    case 'mark-all-present':
+      markAllAttendance('حضور');
+      break;
+    case 'mark-all-absent':
+      markAllAttendance('غياب');
+      break;
+    case 'save-attendance':
+      saveAttendance();
+      break;
+    case 'generate-report':
+      generateReport();
+      break;
+    case 'add-subscriber':
+      addSubscriber();
+      break;
+    case 'save-special-withdrawal':
+      saveSpecialWithdrawal();
+      break;
+    case 'delete-special-withdrawal':
+      deleteSpecialWithdrawal(Number(id));
+      break;
+    case 'save-settings':
+      saveSettings();
+      break;
+    case 'add-section':
+      addSection();
+      break;
+    case 'toggle-section':
+      toggleSection(id);
+      break;
+    case 'backup-data':
+      backupData();
+      break;
+    case 'reset-data':
+      resetData();
+      break;
+    default:
+      break;
+  }
+}
+
+document.addEventListener('click', handleDocumentClick);
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderApp();
+});
+
+renderApp();
+
+window.addEventListener('storage', () => {
+  state = loadState();
+  renderApp();
+});
